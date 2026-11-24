@@ -54,8 +54,9 @@ class _SileroVAD:
         if voiced:
             self.voiced_streak += 1
             self.silence_streak = 0
-            if self.voiced_streak >= 2:
+            if self.voiced_streak >= 1 and not self.speaking:
                 self.speaking = True
+                logger.info(f"User started speaking (prob={prob:.2f})")
         else:
             self.voiced_streak = 0
             if self.speaking:
@@ -64,6 +65,7 @@ class _SileroVAD:
                     ended = True
                     self.speaking = False
                     self.silence_streak = 0
+                    logger.info("User stopped speaking (silence detected)")
 
         return voiced, ended
 

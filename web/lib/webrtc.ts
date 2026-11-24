@@ -27,8 +27,10 @@ export async function startCall(): Promise<CallHandle> {
   });
   mic.getAudioTracks().forEach((t) => pc.addTrack(t, mic));
 
-  // Receive avatar audio + video
+  // Receive avatar video
   pc.addTransceiver("video", { direction: "recvonly" });
+  // Ensure audio transceiver receives avatar speech
+  pc.addTransceiver("audio", { direction: "sendrecv" });
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);

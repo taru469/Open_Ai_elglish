@@ -196,7 +196,7 @@ class Avatar:
         self.fps = self.backend.fps
         self._ready = False
         self._idle_frame: Optional[np.ndarray] = None
-        self._queue: asyncio.Queue[Optional[AVPair]] = asyncio.Queue(maxsize=4)
+        self._subscribers: list[asyncio.Queue[Optional[AVPair]]] = []
         self._cancel = asyncio.Event()
 
     async def load_persona(self, image_path: Path) -> None:
@@ -214,11 +214,12 @@ class Avatar:
 
     def cancel(self) -> None:
         self._cancel.set()
-        while not self._queue.empty():
-            try:
-                self._queue.get_nowait()
-            except asyncio.QueueEmpty:
-                break
+        for q in self._subscribers:
+            while not q.empty():
+                try:
+                    q.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
 
     def reset(self) -> None:
         self._cancel.clear()
@@ -236,14 +237,25 @@ class Avatar:
             return
         if self._cancel.is_set():
             return
-        await self._queue.put(pair)
+        for q in list(self._subscribers):
+            try:
+                await q.put(pair)
+            except Exception:
+                pass
 
     async def end(self) -> None:
-        await self._queue.put(None)
+        for q in list(self._subscribers):
+            await q.put(None)
 
     async def stream(self) -> AsyncIterator[AVPair]:
-        while True:
-            item = await self._queue.get()
-            if item is None:
-                return
-            yield item
+        q: asyncio.Queue[Optional[AVPair]] = asyncio.Queue(maxsize=16)
+        self._subscribers.append(q)
+        try:
+            while True:
+                item = await q.get()
+                if item is None:
+                    return
+                yield item
+        finally:
+            if q in self._subscribers:
+                self._subscribers.remove(q)
