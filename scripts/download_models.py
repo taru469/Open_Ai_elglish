@@ -29,13 +29,13 @@ MUSETALK_FILES = [
      "musetalk/musetalkV15/unet.pth"),
     ("https://huggingface.co/TMElyralab/MuseTalk/resolve/main/musetalkV15/musetalk.json",
      "musetalk/musetalkV15/musetalk.json"),
-    ("https://openaipublic.azureedge.net/main/whisper/models/65147644a518d12f04e32d6f3b26facc3f8dd46e7e3e7ae7f2dbe14fa2c0c70b/tiny.pt",
+    ("https://openaipublic.azureedge.net/main/whisper/models/65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9/tiny.pt",
      "musetalk/whisper/tiny.pt"),
 ]
 
 WAV2LIP_FILES = [
     # ONNX export of Wav2Lip — useful as a CPU/GPU fallback.
-    ("https://huggingface.co/numz/wav2lip_studio/resolve/main/Wav2lip/wav2lip.onnx",
+    ("https://huggingface.co/bluefoxcreation/Wav2lip-Onnx/resolve/main/wav2lip.onnx",
      "wav2lip/wav2lip.onnx"),
 ]
 
