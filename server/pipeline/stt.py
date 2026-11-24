@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from collections import deque
 from dataclasses import dataclass
 from typing import AsyncIterator, Optional
@@ -27,10 +28,10 @@ class Utterance:
 class _WebRTCVAD:
     """Robust, low-latency WebRTC VAD for real-time speech detection."""
 
-    def __init__(self, mode: int = 1, silence_ms: int = 500):
+    def __init__(self, mode: int = 2, silence_ms: int = 600):
         import webrtcvad
 
-        self.vad = webrtcvad.Vad(mode)  # 1 = balanced for general rooms/laptops
+        self.vad = webrtcvad.Vad(mode)  # 2 = moderate aggressiveness for ambient noise rejection
         self.silence_frames_needed = max(1, silence_ms // FRAME_MS)
         self.reset()
 
@@ -41,14 +42,19 @@ class _WebRTCVAD:
 
     def step(self, pcm_f32: np.ndarray) -> tuple[bool, bool]:
         """Returns (is_voiced_now, just_ended_utterance)."""
-        pcm16 = np.clip(pcm_f32 * 32767.0, -32768, 32767).astype(np.int16).tobytes()
-        voiced = self.vad.is_speech(pcm16, SAMPLE_RATE)
+        # Quick energy gate to ignore pure low-amplitude mic hum
+        max_amp = float(np.max(np.abs(pcm_f32))) if len(pcm_f32) else 0.0
+        if max_amp < 0.03:
+            voiced = False
+        else:
+            pcm16 = np.clip(pcm_f32 * 32767.0, -32768, 32767).astype(np.int16).tobytes()
+            voiced = self.vad.is_speech(pcm16, SAMPLE_RATE)
         ended = False
 
         if voiced:
             self.voiced_streak += 1
             self.silence_streak = 0
-            if self.voiced_streak >= 2 and not self.speaking:
+            if self.voiced_streak >= 3 and not self.speaking:
                 self.speaking = True
                 logger.info("Speech detected (user started talking)")
         else:
@@ -161,7 +167,9 @@ class STT:
             return
         text = text.strip()
         logger.info(f"Whisper transcribed ({lang}): '{text}'")
-        if not text:
+        # Ignore hallucinations or repetitive dots/punctuation
+        clean_text = re.sub(r"[\s\.\,\!\?\-…]+", "", text)
+        if not clean_text or len(clean_text) < 2:
             return
         await self._utterance_queue.put(Utterance(text=text, language=lang, duration_s=duration, is_final=True))
 

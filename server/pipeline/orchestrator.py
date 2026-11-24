@@ -77,6 +77,7 @@ class Orchestrator:
             logger.info(f"user: {utt.text}")
             await self._transcripts.put(TranscriptEvent("user", utt.text, True))
             if self._active_reply and not self._active_reply.done():
+                logger.info("New utterance arrived while previous reply was active, interrupting previous turn")
                 self._interrupt()
                 try:
                     await self._active_reply
@@ -87,7 +88,7 @@ class Orchestrator:
     async def _watch_for_barge_in(self) -> None:
         while True:
             await self.stt.voiced_signal()
-            if self._active_reply and not self._active_reply.done():
+            if self.settings.barge_in and self._active_reply and not self._active_reply.done():
                 logger.info("barge-in detected, cancelling assistant turn")
                 self._interrupt()
 
@@ -99,6 +100,7 @@ class Orchestrator:
             self._active_reply.cancel()
 
     async def _reply(self, user_text: str) -> None:
+        logger.info(f"Starting reply pipeline for user text: {user_text!r}")
         self.tts.reset()
         self.avatar.reset()
 
@@ -107,10 +109,14 @@ class Orchestrator:
 
         try:
             await asyncio.gather(producer, consumer)
+            logger.info("Reply pipeline completed successfully")
         except asyncio.CancelledError:
+            logger.info("Reply pipeline cancelled")
             producer.cancel()
             consumer.cancel()
             raise
+        except Exception as e:
+            logger.exception(f"Error in reply pipeline: {e}")
 
     async def _produce_speech(self, user_text: str) -> None:
         full = ""

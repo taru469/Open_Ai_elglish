@@ -159,17 +159,21 @@ class _Wav2LipBackend(_BaseLipSync):
         face_b = np.transpose(face_b, (2, 0, 1))[None, :]  # (1, 6, 96, 96)
         out_frames: list[VideoFrame] = []
         dt = 1.0 / self.fps
-        for i in range(n_frames):
-            seg = self._mel_slice(mel, i, n_frames)
-            seg = seg[None, None, :, :]
-            preds = self._session.run(None, {"mel": seg.astype(np.float32), "vid": face_b.astype(np.float32)})[0]
-            mouth = (np.transpose(preds[0], (1, 2, 0)) * 255).clip(0, 255).astype(np.uint8)
-            mouth = cv2.resize(mouth, (w, h))
-            frame = self._ref.copy()
-            frame[y:y + h, x:x + w] = mouth
-            if frame.shape[:2] != (self.image_size[1], self.image_size[0]):
-                frame = cv2.resize(frame, self.image_size, interpolation=cv2.INTER_LINEAR)
-            out_frames.append(VideoFrame(image=frame, pts=i * dt))
+        batch_size = 16
+        for batch_start in range(0, n_frames, batch_size):
+            batch_end = min(n_frames, batch_start + batch_size)
+            b_len = batch_end - batch_start
+            mel_batch = np.stack([self._mel_slice(mel, idx, n_frames)[None, :, :] for idx in range(batch_start, batch_end)], axis=0) # (B, 1, 80, 16)
+            vid_batch = np.repeat(face_b, b_len, axis=0) # (B, 6, 96, 96)
+            preds = self._session.run(None, {"mel": mel_batch.astype(np.float32), "vid": vid_batch.astype(np.float32)})[0]
+            for idx in range(b_len):
+                mouth = (np.transpose(preds[idx], (1, 2, 0)) * 255).clip(0, 255).astype(np.uint8)
+                mouth = cv2.resize(mouth, (w, h))
+                frame = self._ref.copy()
+                frame[y:y + h, x:x + w] = mouth
+                if frame.shape[:2] != (self.image_size[1], self.image_size[0]):
+                    frame = cv2.resize(frame, self.image_size, interpolation=cv2.INTER_LINEAR)
+                out_frames.append(VideoFrame(image=frame, pts=(batch_start + idx) * dt))
         return AVPair(audio=audio16, video=out_frames, sample_rate=self.output_sr)
 
     @staticmethod
