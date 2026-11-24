@@ -12,8 +12,8 @@ from ..config import Settings
 
 
 SAMPLE_RATE = 16_000
-FRAME_MS = 30
-FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000
+FRAME_SAMPLES = 512   # Silero VAD requires exactly 512 samples at 16kHz (32ms)
+FRAME_MS = 32
 
 
 @dataclass
