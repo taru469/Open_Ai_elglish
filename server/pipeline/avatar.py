@@ -152,8 +152,11 @@ class _Wav2LipBackend(_BaseLipSync):
         mel = self._mel(audio16)
         x, y, w, h = self._face_box  # type: ignore[misc]
         face = cv2.resize(self._ref[y:y + h, x:x + w], (96, 96))
-        face_b = face.astype(np.float32) / 255.0
-        face_b = np.transpose(face_b, (2, 0, 1))[None, :]
+        face_f = face.astype(np.float32) / 255.0
+        masked_face = face_f.copy()
+        masked_face[48:, :, :] = 0.0  # Mask lower half of face for Wav2Lip
+        face_b = np.concatenate([masked_face, face_f], axis=2)  # (96, 96, 6)
+        face_b = np.transpose(face_b, (2, 0, 1))[None, :]  # (1, 6, 96, 96)
         out_frames: list[VideoFrame] = []
         dt = 1.0 / self.fps
         for i in range(n_frames):
