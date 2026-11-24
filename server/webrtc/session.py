@@ -130,10 +130,14 @@ class WebRTCSession:
         return {"sdp": self.pc.localDescription.sdp, "type": self.pc.localDescription.type}
 
     async def _consume_audio(self, track: MediaStreamTrack) -> None:
+        count = 0
         try:
             while True:
                 frame: av.AudioFrame = await track.recv()
-                arr = frame.to_ndarray()  # shape (channels, samples) for s16
+                count += 1
+                if count == 1:
+                    logger.info(f"First mic audio frame received: format={frame.format.name}, rate={frame.sample_rate}, samples={frame.samples}")
+                arr = frame.to_ndarray()
                 if arr.ndim == 2:
                     arr = arr[0]
                 pcm = to_mono_f32(arr)
@@ -142,6 +146,8 @@ class WebRTCSession:
                 self.orch.push_audio(pcm)
         except MediaStreamError:
             logger.info(f"session {self.id} mic ended")
+        except Exception as e:
+            logger.exception(f"session {self.id} _consume_audio error: {e}")
 
     async def close(self) -> None:
         if self._inbound:

@@ -147,11 +147,13 @@ class STT:
         if ended and self._utterance:
             audio = np.concatenate(self._utterance)
             self._utterance.clear()
+            logger.info(f"VAD speech ended, audio length: {len(audio)/SAMPLE_RATE:.2f}s, sending to Whisper")
             asyncio.create_task(self._transcribe(audio))
 
     async def _transcribe(self, audio: np.ndarray) -> None:
         duration = audio.shape[0] / SAMPLE_RATE
         if duration < 0.3:
+            logger.info(f"Utterance too short ({duration:.2f}s), skipping")
             return
         loop = asyncio.get_running_loop()
         try:
@@ -160,6 +162,7 @@ class STT:
             logger.exception(f"whisper failed: {e}")
             return
         text = text.strip()
+        logger.info(f"Whisper transcribed ({lang}): '{text}'")
         if not text:
             return
         await self._utterance_queue.put(Utterance(text=text, language=lang, duration_s=duration, is_final=True))
