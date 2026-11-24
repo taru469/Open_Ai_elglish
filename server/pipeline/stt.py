@@ -148,6 +148,8 @@ class STT:
 
     async def _transcribe(self, audio: np.ndarray) -> None:
         duration = audio.shape[0] / SAMPLE_RATE
+        max_amp = float(np.max(np.abs(audio))) if len(audio) else 0.0
+        logger.info(f"Transcribing audio: {duration:.2f}s, peak amplitude: {max_amp:.4f}")
         if duration < 0.3:
             logger.info(f"Utterance too short ({duration:.2f}s), skipping")
             return
