@@ -12,8 +12,8 @@ from ..config import Settings
 
 
 SAMPLE_RATE = 16_000
-FRAME_SAMPLES = 512   # Silero VAD requires exactly 512 samples at 16kHz (32ms)
-FRAME_MS = 32
+FRAME_MS = 30
+FRAME_SAMPLES = 480   # WebRTC VAD operates on 10, 20, or 30ms (480 samples at 16kHz)
 
 
 @dataclass
@@ -24,16 +24,13 @@ class Utterance:
     is_final: bool
 
 
-class _SileroVAD:
-    """Thin wrapper around silero-vad with a sticky state machine."""
+class _WebRTCVAD:
+    """Robust, low-latency WebRTC VAD for real-time speech detection."""
 
-    def __init__(self, threshold: float, silence_ms: int):
-        import torch
-        from silero_vad import load_silero_vad
+    def __init__(self, mode: int = 1, silence_ms: int = 500):
+        import webrtcvad
 
-        self._torch = torch
-        self.model = load_silero_vad(onnx=False)
-        self.threshold = threshold
+        self.vad = webrtcvad.Vad(mode)  # 1 = balanced for general rooms/laptops
         self.silence_frames_needed = max(1, silence_ms // FRAME_MS)
         self.reset()
 
@@ -44,19 +41,16 @@ class _SileroVAD:
 
     def step(self, pcm_f32: np.ndarray) -> tuple[bool, bool]:
         """Returns (is_voiced_now, just_ended_utterance)."""
-        tensor = self._torch.from_numpy(pcm_f32)
-        with self._torch.no_grad():
-            prob = float(self.model(tensor, SAMPLE_RATE).item())
-
-        voiced = prob >= self.threshold
+        pcm16 = np.clip(pcm_f32 * 32767.0, -32768, 32767).astype(np.int16).tobytes()
+        voiced = self.vad.is_speech(pcm16, SAMPLE_RATE)
         ended = False
 
         if voiced:
             self.voiced_streak += 1
             self.silence_streak = 0
-            if self.voiced_streak >= 1 and not self.speaking:
+            if self.voiced_streak >= 2 and not self.speaking:
                 self.speaking = True
-                logger.info(f"User started speaking (prob={prob:.2f})")
+                logger.info("Speech detected (user started talking)")
         else:
             self.voiced_streak = 0
             if self.speaking:
@@ -65,7 +59,7 @@ class _SileroVAD:
                     ended = True
                     self.speaking = False
                     self.silence_streak = 0
-                    logger.info("User stopped speaking (silence detected)")
+                    logger.info("Speech ended (silence detected)")
 
         return voiced, ended
 
@@ -93,7 +87,7 @@ class STT:
             download_root=str(settings.models_dir / "whisper"),
         )
         self.language: Optional[str] = None if settings.stt_language == "auto" else settings.stt_language
-        self.vad = _SileroVAD(settings.vad_threshold, settings.vad_silence_ms)
+        self.vad = _WebRTCVAD(mode=1, silence_ms=settings.vad_silence_ms)
 
         self._buffer: deque[np.ndarray] = deque()
         self._buffer_samples = 0
