@@ -243,12 +243,19 @@ class Avatar:
             logger.exception(f"avatar render failed: {e}")
             return
         if self._cancel.is_set():
+            logger.info("Avatar render cancelled during execution")
             return
+        logger.info(f"Avatar rendered {len(pair.video)} video frames, broadcasting to {len(self._subscribers)} subscribers")
         for q in list(self._subscribers):
             try:
+                if q.full():
+                    try:
+                        q.get_nowait()
+                    except asyncio.QueueEmpty:
+                        pass
                 await q.put(pair)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Error putting to subscriber queue: {e}")
 
     async def end(self) -> None:
         for q in list(self._subscribers):

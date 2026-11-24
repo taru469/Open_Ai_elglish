@@ -129,7 +129,12 @@ class Orchestrator:
         logger.info(f"assistant: {full}")
 
     async def _render_speech(self) -> None:
+        count = 0
         async for chunk in self.tts.stream():
             if chunk.pcm.size == 0:
                 continue
+            count += 1
+            logger.info(f"Rendering avatar speech chunk {count} ({len(chunk.pcm)/chunk.sample_rate:.2f}s audio: {chunk.text!r})")
             await self.avatar.render(chunk.pcm, chunk.sample_rate)
+            logger.info(f"Finished rendering avatar speech chunk {count}")
+        logger.info(f"All speech chunks rendered (total: {count})")

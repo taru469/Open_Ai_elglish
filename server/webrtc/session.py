@@ -108,8 +108,10 @@ class WebRTCSession:
         self.pc = RTCPeerConnection(configuration=cfg)
         self._inbound: Optional[asyncio.Task] = None
 
-        self.pc.addTrack(_AvatarVideoTrack(settings, orch))
-        self.pc.addTrack(_AvatarAudioTrack(orch))
+        self._video_track = _AvatarVideoTrack(settings, orch)
+        self._audio_track = _AvatarAudioTrack(orch)
+        self.pc.addTrack(self._video_track)
+        self.pc.addTrack(self._audio_track)
 
         @self.pc.on("track")
         def on_track(track: MediaStreamTrack) -> None:
@@ -152,4 +154,8 @@ class WebRTCSession:
     async def close(self) -> None:
         if self._inbound:
             self._inbound.cancel()
+        if hasattr(self, "_video_track") and hasattr(self._video_track, "_task"):
+            self._video_track._task.cancel()
+        if hasattr(self, "_audio_track") and hasattr(self._audio_track, "_task"):
+            self._audio_track._task.cancel()
         await self.pc.close()
