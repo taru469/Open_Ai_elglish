@@ -11,6 +11,8 @@ VENV="${VENV:-.venv}"
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
 
+export KMP_DUPLICATE_LIB_OK=TRUE
+
 if [ ! -f .env ]; then
   cp .env.example .env
   echo "created .env from .env.example"
