@@ -92,7 +92,7 @@ class _PiperBackend:
     def synth(self, text: str) -> np.ndarray:
         buf = io.BytesIO()
         with wave.open(buf, "wb") as wf:
-            self.voice.synthesize(text, wf)
+            self.voice.synthesize_wav(text, wf)
         buf.seek(0)
         with wave.open(buf, "rb") as wf:
             raw = wf.readframes(wf.getnframes())
