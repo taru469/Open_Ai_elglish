@@ -27,7 +27,7 @@ ollama==0.3.3
 
 # TTS
 piper-tts==1.2.0
-TTS==0.22.0          # Coqui XTTS-v2 (optional)
+# TTS==0.22.0          # Coqui XTTS-v2 (optional, requires Python <3.12)
 
 # Lip-sync / avatar (real-time)
 torch>=2.1
